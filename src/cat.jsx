@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Download, Plus, Trash2, FileText } from "lucide-react";
 
 const CateringInvoiceGenerator = () => {
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [invoiceData, setInvoiceData] = useState({
     invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
     date: new Date().toISOString().split("T")[0],
@@ -15,9 +16,8 @@ const CateringInvoiceGenerator = () => {
     customerPhone: "",
     eventDate: "",
     eventVenue: "",
-    items: [{ id: 1, description: "", quantity: 1, amount: 0 }],
+    items: [{ id: 1, description: "", quantity: 1, amount: "" }],
     subtotal: 0,
-
     total: 0,
     notes: "",
   });
@@ -27,8 +27,7 @@ const CateringInvoiceGenerator = () => {
       id: Date.now(),
       description: "",
       quantity: 1,
-
-      amount: 0,
+      amount: "",
     };
     setInvoiceData((prev) => ({
       ...prev,
@@ -47,25 +46,18 @@ const CateringInvoiceGenerator = () => {
     setInvoiceData((prev) => {
       const updatedItems = prev.items.map((item) => {
         if (item.id === id) {
-          const updatedItem = { ...item, [field]: value };
-          if (field === "quantity" || field === "amount") {
-            updatedItem.amount = updatedItem.amount;
-          }
-          return updatedItem;
+          return { ...item, [field]: value };
         }
         return item;
       });
 
-      const subtotal = updatedItems.reduce((sum, item) => sum + item.amount, 0);
-
-      const total = subtotal;
+      const subtotal = updatedItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 
       return {
         ...prev,
         items: updatedItems,
         subtotal,
-
-        total,
+        total: subtotal,
       };
     });
   };
@@ -86,7 +78,36 @@ const CateringInvoiceGenerator = () => {
     }).format(amount);
   };
 
-  const generatePDF = () => {
+  const generatePDF = async () => {
+    setIsGeneratingPDF(true);
+    let paymentLink = null;
+
+    try {
+      const response = await fetch('/api/payment-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: invoiceData.total,
+          customerName: invoiceData.customerName,
+          customerPhone: invoiceData.customerPhone,
+          customerEmail: invoiceData.customerEmail,
+          description: invoiceData.items.map(i => i.description).join(', ') || 'Catering Services',
+          invoiceNumber: invoiceData.invoiceNumber
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        paymentLink = data.paymentLink;
+      } else {
+        console.error("Failed to generate payment link", await response.text());
+        alert("Warning: Failed to create Razorpay Payment Link. Proceeding to generate PDF without it.");
+      }
+    } catch (err) {
+      console.error("Error connecting to payment API", err);
+      // We don't block the PDF generation if the payment link fails
+    }
+
     const printWindow = window.open("", "_blank");
     const invoiceHTML = `
       <!DOCTYPE html>
@@ -178,6 +199,21 @@ const CateringInvoiceGenerator = () => {
             padding: 15px;
             background: #fffbeb;
             border-left: 4px solid #f59e0b;
+          }
+          .pay-button-container {
+            text-align: center;
+            margin-top: 40px;
+          }
+          .pay-button {
+            display: inline-block;
+            background-color: #3b82f6;
+            color: white;
+            padding: 14px 28px;
+            font-size: 18px;
+            font-weight: bold;
+            text-decoration: none;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
           }
           @media print {
             body { margin: 0; padding: 10px; }
@@ -300,6 +336,12 @@ const CateringInvoiceGenerator = () => {
           }
 
           <div style="text-align: center; margin-top: 40px; color: #6b7280; font-size: 14px;">
+            ${paymentLink ? `
+              <div class="pay-button-container">
+                 <a href="${paymentLink}" class="pay-button" target="_blank">Pay Now via Razorpay</a>
+                 <p style="margin-top: 10px; font-size: 12px; color: #6b7280;">(Click above to pay securely online)</p>
+              </div>
+            ` : ''}
             <p>Thank you for your business!</p>
           </div>
         </div>
@@ -311,9 +353,13 @@ const CateringInvoiceGenerator = () => {
 
     printWindow.document.write(invoiceHTML);
     printWindow.document.close();
+    
+    // Slight delay to ensure images/CSS load before print dialog
     setTimeout(() => {
+      printWindow.focus();
       printWindow.print();
-    }, 500);
+      setIsGeneratingPDF(false);
+    }, 800);
   };
 
   return (
@@ -330,10 +376,11 @@ const CateringInvoiceGenerator = () => {
             </div>
             <button
               onClick={generatePDF}
-              className="flex items-center space-x-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+              disabled={isGeneratingPDF}
+              className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-colors text-white ${isGeneratingPDF ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
             >
               <Download className="h-5 w-5" />
-              <span>Download PDF</span>
+              <span>{isGeneratingPDF ? 'Generating...' : 'Download PDF'}</span>
             </button>
           </div>
 
@@ -581,11 +628,7 @@ const CateringInvoiceGenerator = () => {
                           type="number"
                           value={item.quantity}
                           onChange={(e) =>
-                            updateItem(
-                              item.id,
-                              "quantity",
-                              parseInt(e.target.value) || 0
-                            )
+                            updateItem(item.id, "quantity", e.target.value)
                           }
                           className="w-full border border-gray-300 rounded px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
                           min="1"
@@ -614,14 +657,10 @@ const CateringInvoiceGenerator = () => {
                           type="number"
                           value={item.amount}
                           onChange={(e) =>
-                            updateItem(
-                              item.id,
-                              "amount",
-                              parseInt(e.target.value) || 0
-                            )
+                            updateItem(item.id, "amount", e.target.value)
                           }
                           className="w-full border border-gray-300 rounded px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          min="1"
+                          min="0"
                         />
                       </td>
 
@@ -679,10 +718,11 @@ const CateringInvoiceGenerator = () => {
           </div>
           <button
             onClick={generatePDF}
-            className="flex items-center space-x-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+            disabled={isGeneratingPDF}
+            className={`w-full flex justify-center items-center space-x-2 px-6 py-3 rounded-lg transition-colors text-white ${isGeneratingPDF ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
           >
             <Download className="h-5 w-5" />
-            <span>Download PDF</span>
+            <span>{isGeneratingPDF ? 'Generating PDF & Payment Link...' : 'Download PDF'}</span>
           </button>
         </div>
       </div>
