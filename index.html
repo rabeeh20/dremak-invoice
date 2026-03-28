@@ -8,7 +8,24 @@
     <title>Dremak Invoice Generator</title>
   </head>
   <body>
+    <style>
+      /* Critical inline CSS — so the loading state is visible immediately */
+      @keyframes spin { to { transform: rotate(360deg); } }
+      body { margin: 0; }
+      #root:empty::after {
+        content: 'Loading...';
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background: #f8fafc;
+        color: #94a3b8;
+        font-family: 'Inter', sans-serif;
+        font-size: 14px;
+      }
+    </style>
     <div id="root"></div>
+    <noscript>JavaScript is required to run Dremak Invoice Generator.</noscript>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

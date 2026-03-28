@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Download, Plus, Trash2, FileText } from "lucide-react";
+import { Download, Plus, Trash2, FileText, LogOut } from "lucide-react";
 
 const BUSINESS = {
   name: "DREMAK CATERERS",
@@ -8,7 +8,7 @@ const BUSINESS = {
   email: "support.dremakcaterers@gmail.com",
 };
 
-const CateringInvoiceGenerator = () => {
+const CateringInvoiceGenerator = ({ userEmail, onLogout }) => {
   const [includePaymentLink, setIncludePaymentLink] = useState(true);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [invoiceData, setInvoiceData] = useState({
@@ -93,6 +93,7 @@ const CateringInvoiceGenerator = () => {
       const response = await fetch("/api/payment-link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           amount: invoiceData.total,
           customerName: invoiceData.customerName,
@@ -363,18 +364,33 @@ const CateringInvoiceGenerator = () => {
                 Catering Invoice Generator
               </h1>
             </div>
-            <button
-              onClick={generatePDF}
-              disabled={isGeneratingPDF}
-              className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-colors text-white ${
-                isGeneratingPDF
-                  ? "bg-blue-400 cursor-not-allowed"
-                  : "bg-blue-600 hover:bg-blue-700"
-              }`}
-            >
-              <Download className="h-5 w-5" />
-              <span>{isGeneratingPDF ? "Generating..." : "Download PDF"}</span>
-            </button>
+            <div className="flex items-center gap-3">
+              {userEmail && (
+                <span className="text-sm text-gray-500 hidden md:block">{userEmail}</span>
+              )}
+              <button
+                onClick={generatePDF}
+                disabled={isGeneratingPDF}
+                className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-colors text-white ${
+                  isGeneratingPDF
+                    ? "bg-blue-400 cursor-not-allowed"
+                    : "bg-blue-600 hover:bg-blue-700"
+                }`}
+              >
+                <Download className="h-5 w-5" />
+                <span>{isGeneratingPDF ? "Generating..." : "Download PDF"}</span>
+              </button>
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  title="Sign out"
+                  className="flex items-center gap-2 px-4 py-3 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors border border-gray-200"
+                >
+                  <LogOut className="h-5 w-5" />
+                  <span className="hidden md:inline text-sm font-medium">Sign Out</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Invoice Details */}
