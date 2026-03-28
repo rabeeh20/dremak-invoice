@@ -1,11 +1,6 @@
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
-
-// ── In-memory OTP store (per serverless instance) ─────────────────────────────
-// Note: Vercel serverless functions are stateless — OTPs persist within a
-// warm instance but may be lost on cold starts. For production scale,
-// replace with Redis or a DB. For a small team this is fine.
-const otpStore = global._otpStore || (global._otpStore = new Map());
+import jwt from 'jsonwebtoken';
 
 const allowedEmails = (process.env.ALLOWED_EMAILS || '')
   .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
@@ -24,30 +19,28 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
   const { email } = req.body;
-  if (!email || typeof email !== 'string') return res.status(400).json({ error: 'Email is required' });
+  if (!email || typeof email !== 'string') {
+    return res.status(400).json({ error: 'Email is required' });
+  }
 
   const normalizedEmail = email.trim().toLowerCase();
 
+  // Allowlist check
   if (allowedEmails.length > 0 && !allowedEmails.includes(normalizedEmail)) {
     return res.status(403).json({ error: 'This email is not authorized to access this application.' });
   }
 
-  const existing = otpStore.get(normalizedEmail);
-  const now = Date.now();
-  const RATE_WINDOW = 10 * 60 * 1000;
-  if (existing && existing.sendCount >= 3 && existing.lastSentAt > now - RATE_WINDOW) {
-    const waitSecs = Math.ceil((existing.lastSentAt + RATE_WINDOW - now) / 1000);
-    return res.status(429).json({ error: `Too many attempts. Please wait ${waitSecs} seconds.` });
-  }
-
+  // Generate 6-digit OTP
   const otp = crypto.randomInt(100000, 999999).toString();
-  otpStore.set(normalizedEmail, {
-    otp,
-    expiresAt: now + 5 * 60 * 1000,
-    attempts: 0,
-    lastSentAt: now,
-    sendCount: (existing?.sendCount || 0) + 1,
-  });
+
+  // ── Stateless approach: embed OTP in a short-lived signed JWT ─────────────
+  // This way verify-otp.js doesn't need shared server state — it just verifies
+  // the JWT signature and extracts the OTP from it.
+  const otpToken = jwt.sign(
+    { email: normalizedEmail, otp },
+    process.env.JWT_SECRET,
+    { expiresIn: '5m' } // OTP valid for 5 minutes
+  );
 
   try {
     await transporter.sendMail({
@@ -69,10 +62,11 @@ export default async function handler(req, res) {
         </div>
       `,
     });
-    return res.status(200).json({ success: true });
+
+    // Return the signed OTP token to the client — stored in React state only
+    return res.status(200).json({ success: true, otpToken });
   } catch (err) {
     console.error('Email error:', err);
-    otpStore.delete(normalizedEmail);
-    return res.status(500).json({ error: 'Failed to send OTP email.' });
+    return res.status(500).json({ error: 'Failed to send OTP email. Check GMAIL_APP_PASSWORD in Vercel env vars.' });
   }
 }

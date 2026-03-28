@@ -5,6 +5,7 @@ const LoginPage = ({ onLogin }) => {
   const [step, setStep] = useState('email'); // 'email' | 'otp'
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [otpToken, setOtpToken] = useState(''); // signed JWT from send-otp (stateless Vercel approach)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [countdown, setCountdown] = useState(0);
@@ -30,6 +31,7 @@ const LoginPage = ({ onLogin }) => {
       });
       const data = await res.json();
       if (!res.ok) return setError(data.error || 'Failed to send OTP');
+      setOtpToken(data.otpToken); // store the signed OTP token
       setStep('otp');
       setCountdown(60);
       setTimeout(() => otpRefs.current[0]?.focus(), 100);
@@ -51,7 +53,7 @@ const LoginPage = ({ onLogin }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ email, otp: code }),
+        body: JSON.stringify({ otpToken, otp: code }),
       });
       const data = await res.json();
       if (!res.ok) return setError(data.error || 'Invalid code. Please try again.');
@@ -89,6 +91,7 @@ const LoginPage = ({ onLogin }) => {
   const resetToEmail = () => {
     setStep('email');
     setOtp(['', '', '', '', '', '']);
+    setOtpToken('');
     setError('');
   };
 
