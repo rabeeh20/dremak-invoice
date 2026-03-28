@@ -1,12 +1,46 @@
-# React + Vite
+# Dremak Invoice Generator
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A React + Vite web application for generating professional catering invoices with integrated Razorpay payment links for **Dremak Caterers**.
 
-Currently, two official plugins are available:
+## Features
+- Generate printable PDF invoices
+- Auto-generate Razorpay payment links sent to the customer
+- Catering-specific fields: event date, venue, item units (kg, g, ltr, pcs, etc.)
+- INR currency formatting
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Project Structure
+```
+├── src/
+│   └── InvoiceGenerator.jsx   # Main invoice UI component
+├── api/
+│   └── payment-link.js        # Vercel serverless handler (for production)
+├── server.js                  # Express dev server for local API
+└── vite.config.js             # Vite config with /api proxy
+```
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### 1. Set up environment variables
+```bash
+cp .env.example .env
+# Edit .env and add your Razorpay keys from https://dashboard.razorpay.com/app/keys
+```
+
+### 2. Install dependencies
+```bash
+npm install
+```
+
+### 3. Run in development (two terminals)
+```bash
+# Terminal 1 — Frontend
+npm run dev
+
+# Terminal 2 — Backend API
+npm run server
+```
+
+Open http://localhost:5173
+
+## Deployment (Vercel)
+Push to GitHub and connect to Vercel. The `api/payment-link.js` file is automatically served as a serverless function. Set your `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` in Vercel's environment variables dashboard.

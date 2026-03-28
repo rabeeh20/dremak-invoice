@@ -1,6 +1,6 @@
 
 import './App.css'
-import CateringInvoiceGenerator from './cat'
+import CateringInvoiceGenerator from './InvoiceGenerator'
 
 function App() {
   

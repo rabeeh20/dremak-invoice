@@ -1,22 +1,28 @@
 import React, { useState } from "react";
 import { Download, Plus, Trash2, FileText } from "lucide-react";
 
+const BUSINESS = {
+  name: "DREMAK CATERERS",
+  address: "TC Road, Tirurangadi, Malappuram, Kerala - 676306",
+  phone: "+91 9645012224",
+  email: "support.dremakcaterers@gmail.com",
+};
+
 const CateringInvoiceGenerator = () => {
+  const [includePaymentLink, setIncludePaymentLink] = useState(true);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [invoiceData, setInvoiceData] = useState({
     invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
     date: new Date().toISOString().split("T")[0],
     dueDate: "",
-    businessName: "",
-    businessAddress: "",
-    businessPhone: "",
-    businessEmail: "",
     customerName: "",
     customerAddress: "",
     customerPhone: "",
+    customerEmail: "",
     eventDate: "",
     eventVenue: "",
-    items: [{ id: 1, description: "", quantity: 1, amount: "" }],
+    // FIX: added unit: "" to initial item state
+    items: [{ id: 1, description: "", quantity: 1, unit: "", amount: "" }],
     subtotal: 0,
     total: 0,
     notes: "",
@@ -27,6 +33,7 @@ const CateringInvoiceGenerator = () => {
       id: Date.now(),
       description: "",
       quantity: 1,
+      unit: "",
       amount: "",
     };
     setInvoiceData((prev) => ({
@@ -51,7 +58,10 @@ const CateringInvoiceGenerator = () => {
         return item;
       });
 
-      const subtotal = updatedItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+      const subtotal = updatedItems.reduce(
+        (sum, item) => sum + (Number(item.amount) || 0),
+        0
+      );
 
       return {
         ...prev,
@@ -63,11 +73,7 @@ const CateringInvoiceGenerator = () => {
   };
 
   const updateInvoiceData = (field, value) => {
-    setInvoiceData((prev) => {
-      const updated = { ...prev, [field]: value };
-
-      return updated;
-    });
+    setInvoiceData((prev) => ({ ...prev, [field]: value }));
   };
 
   const formatCurrency = (amount) => {
@@ -82,18 +88,21 @@ const CateringInvoiceGenerator = () => {
     setIsGeneratingPDF(true);
     let paymentLink = null;
 
+    if (includePaymentLink) {
     try {
-      const response = await fetch('/api/payment-link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/payment-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount: invoiceData.total,
           customerName: invoiceData.customerName,
           customerPhone: invoiceData.customerPhone,
           customerEmail: invoiceData.customerEmail,
-          description: invoiceData.items.map(i => i.description).join(', ') || 'Catering Services',
-          invoiceNumber: invoiceData.invoiceNumber
-        })
+          description:
+            invoiceData.items.map((i) => i.description).join(", ") ||
+            "Catering Services",
+          invoiceNumber: invoiceData.invoiceNumber,
+        }),
       });
 
       if (response.ok) {
@@ -101,12 +110,15 @@ const CateringInvoiceGenerator = () => {
         paymentLink = data.paymentLink;
       } else {
         console.error("Failed to generate payment link", await response.text());
-        alert("Warning: Failed to create Razorpay Payment Link. Proceeding to generate PDF without it.");
+        alert(
+          "Warning: Failed to create Razorpay Payment Link. Proceeding to generate PDF without it."
+        );
       }
     } catch (err) {
       console.error("Error connecting to payment API", err);
-      // We don't block the PDF generation if the payment link fails
+      // PDF generation continues even if payment link fails
     }
+    } // end includePaymentLink guard
 
     const printWindow = window.open("", "_blank");
     const invoiceHTML = `
@@ -224,44 +236,32 @@ const CateringInvoiceGenerator = () => {
       <body>
         <div class="invoice-container">
           <div class="header">
-            <h1>DREMAK CATERERS</h1>
+            <h1>${BUSINESS.name}</h1>
             <p>Invoice #${invoiceData.invoiceNumber}</p>
           </div>
 
           <div class="invoice-details">
+            <!-- FIX: PDF now uses BUSINESS constants, not form fields that were ignored -->
             <div class="business-info info-section">
               <h3>From:</h3>
-              <strong>DREMAK CATERERS</strong><br>
-              TC Road, Tirurangadi<br>
-               Malappuram,Kerala - 676306
-              
-
-              <br>
-              Phone:+91 9645012224<br>
-              Email:support.dremakcaterers@gmail.com
+              <strong>${BUSINESS.name}</strong><br>
+              ${BUSINESS.address}<br>
+              Phone: ${BUSINESS.phone}<br>
+              Email: ${BUSINESS.email}
             </div>
             <div class="customer-info info-section">
               <h3>Bill To:</h3>
-              <strong>${
-                invoiceData.customerName || "Customer Name"
-              }</strong><br>
+              <strong>${invoiceData.customerName || "Customer Name"}</strong><br>
               ${invoiceData.customerAddress || "Customer Address"}<br>
-              Phone: ${invoiceData.customerPhone || "Customer Phone"}
+              Phone: ${invoiceData.customerPhone || "Customer Phone"}<br>
+              ${invoiceData.customerEmail ? `Email: ${invoiceData.customerEmail}<br>` : ""}
             </div>
           </div>
 
           <div class="invoice-details">
             <div>
-              <strong>Invoice Date:</strong> ${new Date(
-                invoiceData.date
-              ).toLocaleDateString("en-IN")}<br>
-              ${
-                invoiceData.dueDate
-                  ? `<strong>Due Date:</strong> ${new Date(
-                      invoiceData.dueDate
-                    ).toLocaleDateString("en-IN")}<br>`
-                  : ""
-              }
+              <strong>Invoice Date:</strong> ${new Date(invoiceData.date).toLocaleDateString("en-IN")}<br>
+              ${invoiceData.dueDate ? `<strong>Due Date:</strong> ${new Date(invoiceData.dueDate).toLocaleDateString("en-IN")}<br>` : ""}
             </div>
           </div>
 
@@ -270,18 +270,8 @@ const CateringInvoiceGenerator = () => {
               ? `
           <div class="event-details">
             <h3 style="margin-top: 0; color: #3b82f6;">Event Details</h3>
-            ${
-              invoiceData.eventDate
-                ? `<strong>Event Date:</strong> ${new Date(
-                    invoiceData.eventDate
-                  ).toLocaleDateString("en-IN")}<br>`
-                : ""
-            }
-            ${
-              invoiceData.eventVenue
-                ? `<strong>Venue:</strong> ${invoiceData.eventVenue}`
-                : ""
-            }
+            ${invoiceData.eventDate ? `<strong>Event Date:</strong> ${new Date(invoiceData.eventDate).toLocaleDateString("en-IN")}<br>` : ""}
+            ${invoiceData.eventVenue ? `<strong>Venue:</strong> ${invoiceData.eventVenue}` : ""}
           </div>
           `
               : ""
@@ -291,9 +281,8 @@ const CateringInvoiceGenerator = () => {
             <thead>
               <tr>
                 <th style="width: 50%">Description</th>
-                <th style="width: 15%" class="text-right">Quantity</th>
-                
-                <th style="width: 15%" class="text-right">Amount</th>
+                <th style="width: 20%" class="text-right">Qty / Unit</th>
+                <th style="width: 30%" class="text-right">Amount</th>
               </tr>
             </thead>
             <tbody>
@@ -302,8 +291,8 @@ const CateringInvoiceGenerator = () => {
                   (item) => `
                 <tr>
                   <td>${item.description || "Service Item"}</td>
-                  <td class="text-right">${item.quantity}  ${item.unit}</td>
-                 
+                  <!-- FIX: guarded item.unit with fallback to avoid "undefined" in PDF -->
+                  <td class="text-right">${item.quantity} ${item.unit || ""}</td>
                   <td class="text-right">${formatCurrency(item.amount)}</td>
                 </tr>
               `
@@ -317,7 +306,6 @@ const CateringInvoiceGenerator = () => {
               <span>Subtotal:</span>
               <span>${formatCurrency(invoiceData.subtotal)}</span>
             </div>
-           
             <div class="total-row final-total">
               <span>Total Amount:</span>
               <span>${formatCurrency(invoiceData.total)}</span>
@@ -336,25 +324,26 @@ const CateringInvoiceGenerator = () => {
           }
 
           <div style="text-align: center; margin-top: 40px; color: #6b7280; font-size: 14px;">
-            ${paymentLink ? `
+            ${
+              paymentLink
+                ? `
               <div class="pay-button-container">
-                 <a href="${paymentLink}" class="pay-button" target="_blank">Pay Now via Razorpay</a>
-                 <p style="margin-top: 10px; font-size: 12px; color: #6b7280;">(Click above to pay securely online)</p>
+                <a href="${paymentLink}" class="pay-button" target="_blank">Pay Now via Razorpay</a>
+                <p style="margin-top: 10px; font-size: 12px; color: #6b7280;">(Click above to pay securely online)</p>
               </div>
-            ` : ''}
+            `
+                : ""
+            }
             <p>Thank you for your business!</p>
           </div>
         </div>
       </body>
-     
-    
       </html>
     `;
 
     printWindow.document.write(invoiceHTML);
     printWindow.document.close();
-    
-    // Slight delay to ensure images/CSS load before print dialog
+
     setTimeout(() => {
       printWindow.focus();
       printWindow.print();
@@ -377,10 +366,14 @@ const CateringInvoiceGenerator = () => {
             <button
               onClick={generatePDF}
               disabled={isGeneratingPDF}
-              className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-colors text-white ${isGeneratingPDF ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+              className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-colors text-white ${
+                isGeneratingPDF
+                  ? "bg-blue-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700"
+              }`}
             >
               <Download className="h-5 w-5" />
-              <span>{isGeneratingPDF ? 'Generating...' : 'Download PDF'}</span>
+              <span>{isGeneratingPDF ? "Generating..." : "Download PDF"}</span>
             </button>
           </div>
 
@@ -423,72 +416,7 @@ const CateringInvoiceGenerator = () => {
             </div>
           </div>
 
-          {/* Business Information */}
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              Business Information
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Business Name
-                </label>
-                <input
-                  type="text"
-                  value={invoiceData.businessName}
-                  onChange={(e) =>
-                    updateInvoiceData("businessName", e.target.value)
-                  }
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Your Catering Business"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Phone
-                </label>
-                <input
-                  type="text"
-                  value={invoiceData.businessPhone}
-                  onChange={(e) =>
-                    updateInvoiceData("businessPhone", e.target.value)
-                  }
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="+91 XXXXX XXXXX"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Address
-                </label>
-                <textarea
-                  value={invoiceData.businessAddress}
-                  onChange={(e) =>
-                    updateInvoiceData("businessAddress", e.target.value)
-                  }
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows="2"
-                  placeholder="Business Address"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={invoiceData.businessEmail}
-                  onChange={(e) =>
-                    updateInvoiceData("businessEmail", e.target.value)
-                  }
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="business@email.com"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Customer Information */}
+          {/* Customer Information — FIX: added email field */}
           <div className="mb-8">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">
               Customer Information
@@ -522,7 +450,21 @@ const CateringInvoiceGenerator = () => {
                   placeholder="+91 XXXXX XXXXX"
                 />
               </div>
-              <div className="md:col-span-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={invoiceData.customerEmail}
+                  onChange={(e) =>
+                    updateInvoiceData("customerEmail", e.target.value)
+                  }
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="customer@email.com"
+                />
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Address
                 </label>
@@ -640,7 +582,7 @@ const CateringInvoiceGenerator = () => {
                           onChange={(e) =>
                             updateItem(item.id, "unit", e.target.value)
                           }
-                          className="w-full border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2"
+                          className="w-full border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
                           <option value="">Select unit</option>
                           <option value="kg">kg</option>
@@ -651,7 +593,6 @@ const CateringInvoiceGenerator = () => {
                           <option value="nos">nos</option>
                         </select>
                       </td>
-
                       <td className="px-4 py-3">
                         <input
                           type="number"
@@ -663,11 +604,10 @@ const CateringInvoiceGenerator = () => {
                           min="0"
                         />
                       </td>
-
                       <td className="px-4 py-3 text-center">
                         <button
                           onClick={() => removeItem(item.id)}
-                          className="text-red-600 hover:text-red-800 transition-colors"
+                          className="text-red-600 hover:text-red-800 transition-colors disabled:opacity-40"
                           disabled={invoiceData.items.length === 1}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -691,7 +631,6 @@ const CateringInvoiceGenerator = () => {
                       {formatCurrency(invoiceData.subtotal)}
                     </span>
                   </div>
-
                   <div className="border-t pt-3">
                     <div className="flex justify-between text-lg font-bold text-blue-600">
                       <span>Total:</span>
@@ -716,13 +655,45 @@ const CateringInvoiceGenerator = () => {
               placeholder="Additional notes, terms, or conditions..."
             />
           </div>
+
+          {/* Payment Link Toggle */}
+          <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-5 py-4 mb-6">
+            <div>
+              <p className="text-sm font-semibold text-gray-800">Include Razorpay Payment Button</p>
+              <p className="text-xs text-gray-500 mt-0.5">Adds a "Pay Now" link to the generated PDF</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIncludePaymentLink((prev) => !prev)}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                includePaymentLink ? "bg-blue-600" : "bg-gray-300"
+              }`}
+              role="switch"
+              aria-checked={includePaymentLink}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  includePaymentLink ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </button>
+          </div>
+
           <button
             onClick={generatePDF}
             disabled={isGeneratingPDF}
-            className={`w-full flex justify-center items-center space-x-2 px-6 py-3 rounded-lg transition-colors text-white ${isGeneratingPDF ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+            className={`w-full flex justify-center items-center space-x-2 px-6 py-3 rounded-lg transition-colors text-white ${
+              isGeneratingPDF
+                ? "bg-blue-400 cursor-not-allowed"
+                : "bg-blue-600 hover:bg-blue-700"
+            }`}
           >
             <Download className="h-5 w-5" />
-            <span>{isGeneratingPDF ? 'Generating PDF & Payment Link...' : 'Download PDF'}</span>
+            <span>
+              {isGeneratingPDF
+                ? "Generating PDF & Payment Link..."
+                : "Download PDF"}
+            </span>
           </button>
         </div>
       </div>
