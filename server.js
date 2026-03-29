@@ -181,13 +181,14 @@ app.post('/api/auth/verify-otp', (req, res) => {
   // ✅ OTP valid — delete immediately (single-use)
   otpStore.delete(normalizedEmail);
 
-  const token = jwt.sign({ email: normalizedEmail }, process.env.JWT_SECRET, { expiresIn: '8h' });
+  const SESSION_DAYS = 30;
+  const token = jwt.sign({ email: normalizedEmail }, process.env.JWT_SECRET, { expiresIn: `${SESSION_DAYS}d` });
 
   res.cookie('auth_token', token, {
-    httpOnly: true, // not accessible via JS — XSS protection
-    secure: process.env.NODE_ENV === 'production', // HTTPS only in prod
-    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-    maxAge: 8 * 60 * 60 * 1000, // 8 hours
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax', // Lax works with bookmarks and direct URL visits
+    maxAge: SESSION_DAYS * 24 * 60 * 60 * 1000, // 30 days
   });
 
   return res.status(200).json({ success: true, email: normalizedEmail });
@@ -203,7 +204,7 @@ app.post('/api/auth/logout', (req, res) => {
   res.clearCookie('auth_token', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    sameSite: 'lax',
   });
   return res.status(200).json({ success: true });
 });

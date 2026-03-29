@@ -1,7 +1,9 @@
 import jwt from 'jsonwebtoken';
 
 export default function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', process.env.CLIENT_ORIGIN || '*');
+  const isHttps = req.headers['x-forwarded-proto'] === 'https';
+  const origin = req.headers.origin || process.env.CLIENT_ORIGIN || '';
+  if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -14,7 +16,7 @@ export default function handler(req, res) {
     if (!match) return res.status(401).json({ error: 'Unauthorized' });
     const user = jwt.verify(match[1], process.env.JWT_SECRET);
     return res.status(200).json({ email: user.email });
-  } catch {
+  } catch (err) {
     return res.status(401).json({ error: 'Session expired. Please log in again.' });
   }
 }
